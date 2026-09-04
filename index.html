@@ -245,6 +245,19 @@
 </div>
 
 <script>
+let SUPABASE_URL, SUPABASE_ANON_KEY, WEBHOOK_URL, supabase;
+
+    async function loadConfig() {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        SUPABASE_URL = config.supabaseUrl;
+        SUPABASE_ANON_KEY = config.supabaseAnonKey;
+        WEBHOOK_URL = config.webhookUrl;
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // Call this before loadDepartmentOptions() / loadStandardPeriod() at the bottom of your script
+    await loadConfig();
 /* =========================================================================
    CONFIGURATION — replace before deploying
    ========================================================================= */
