@@ -257,7 +257,7 @@ let SUPABASE_URL, SUPABASE_ANON_KEY, WEBHOOK_URL, supabase;
     }
 
     // Call this before loadDepartmentOptions() / loadStandardPeriod() at the bottom of your script
-    await loadConfig();
+   
 /* =========================================================================
    CONFIGURATION — replace before deploying
    ========================================================================= */
@@ -342,7 +342,7 @@ const SAMPLE_REPORTS = {
     ai_data_quality_notes: "11 records flagged year to date: 6 missing deal amount, 2 missing status, 3 with invalid due dates."
   }
 };
-
+await loadConfig()
 /* =========================================================================
    Supabase client + department list
    ========================================================================= */
