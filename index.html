@@ -245,23 +245,15 @@
 </div>
 
 <script>
-let SUPABASE_URL, SUPABASE_ANON_KEY, WEBHOOK_URL, supabase;
 
-    async function loadConfig() {
-        const res = await fetch('/api/config');
-        const config = await res.json();
-        SUPABASE_URL = config.supabaseUrl;
-        SUPABASE_ANON_KEY = config.supabaseAnonKey;
-        WEBHOOK_URL = config.webhookUrl;
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-
-    // Call this before loadDepartmentOptions() / loadStandardPeriod() at the bottom of your script
    
 /* =========================================================================
    CONFIGURATION — replace before deploying
    ========================================================================= */
-const USE_SAMPLE_DATA = false;
+    const SUPABASE_URL = 'https://lmbqaneywsoyknxhwerj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtYnFhbmV5d3NveWtueGh3ZXJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTE2MzUsImV4cCI6MjEwMzg2NzYzNX0.l_LZujqoHwE2WpACQ_tGfnU8PGHbo9832bs0MuhWL5I';
+    const WEBHOOK_URL = 'https://pod1.app.n8n.cloud/webhook/request';
+   const USE_SAMPLE_DATA = false;
 
 const DEPARTMENT_LABELS = {
   sales: 'Sales',
@@ -342,7 +334,7 @@ const SAMPLE_REPORTS = {
     ai_data_quality_notes: "11 records flagged year to date: 6 missing deal amount, 2 missing status, 3 with invalid due dates."
   }
 };
-await loadConfig()
+
 /* =========================================================================
    Supabase client + department list
    ========================================================================= */
