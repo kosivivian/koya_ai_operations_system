@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Koya Talent · Operations Report</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0A0A;
+    --surface: #141414;
+    --surface-raised: #191919;
+    --border: #262626;
+    --border-soft: #1E1E1E;
+    --ink: #F5F5F5;
+    --ink-dim: #9A9A9A;
+    --ink-faint: #6B6B6B;
+    --white: #FFFFFF;
+    --red: #E5484D;
+    --red-tint: rgba(229, 72, 77, 0.10);
+    --red-border: rgba(229, 72, 77, 0.35);
+    --gray-1: #F5F5F5;
+    --gray-2: #B5B5B5;
+    --gray-3: #7A7A7A;
+    --gray-4: #4A4A4A;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { max-width: 1240px; margin: 0 auto; padding: 28px 24px 90px; }
+
+  /* ---------- Top bar ---------- */
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 20px; flex-wrap: wrap; margin-bottom: 26px;
+    padding-bottom: 20px; border-bottom: 1px solid var(--border-soft);
+  }
+  .brand-row { display: flex; align-items: center; gap: 14px; }
+  .brand-row .mark {
+    width: 36px; height: 36px; border-radius: 9px; background: var(--white);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bg); font-weight: 800; font-size: 15px; flex-shrink: 0;
+  }
+  .brand-title { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 12.5px; color: var(--ink-dim); margin: 2px 0 0; }
+
+  .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  select, .pill-btn, .export-btn {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 9px 16px; cursor: pointer;
+  }
+  select { appearance: none; padding-right: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239A9A9A' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+  }
+  select:hover, .export-btn:hover { border-color: var(--gray-3); }
+
+  .tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+  .tab { border: none; background: transparent; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); cursor: pointer; font-family: inherit; }
+  .tab.active { background: var(--white); color: var(--bg); }
+
+  .export-btn { display: flex; align-items: center; gap: 7px; }
+  .custom-range { display: none; align-items: center; gap: 8px; }
+  .custom-range.show { display: flex; }
+  .custom-range input[type="date"] {
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 7px 10px; font-family: inherit; font-size: 12px;
+    background: var(--surface); color: var(--ink);
+  }
+  .btn-run { background: var(--white); color: var(--bg); border: none; padding: 8px 15px; border-radius: var(--radius-sm); font-weight: 700; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .btn-run:disabled { background: var(--gray-4); color: var(--ink-dim); cursor: wait; }
+
+  .loading-overlay { display: none; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-dim); padding: 4px 0 16px; }
+  .loading-overlay.show { display: flex; }
+  .spinner { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--white); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .config-bar { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 18px; font-size: 12px; color: var(--ink-dim); }
+  .config-bar.show { display: block; }
+  .config-bar code { background: #000; padding: 1px 6px; border-radius: 4px; color: var(--gray-2); }
+
+  /* ---------- Hero KPI strip ---------- */
+  .hero-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 20px; }
+  .kpi-tile { background: var(--surface); padding: 20px 22px; }
+  .kpi-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+  .kpi-value { font-family: var(--mono); font-size: 27px; font-weight: 500; letter-spacing: -0.01em; }
+  .kpi-sub { font-size: 12px; color: var(--ink-dim); margin-top: 8px; }
+
+  /* ---------- Signals row: chart + alert cards ---------- */
+  .signals-row { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .signals-row { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
+  .panel-title { font-size: 13px; font-weight: 700; margin: 0 0 16px; display: flex; justify-content: space-between; align-items: center; }
+  .panel-title .tag { font-size: 11px; font-weight: 600; color: var(--ink-dim); font-family: var(--mono); }
+  .chart-box { height: 240px; position: relative; }
+
+  .alert-stack { display: flex; flex-direction: column; gap: 12px; max-height: 300px; overflow-y: auto; padding-right: 2px; }
+  .alert-card { border-radius: var(--radius-md); padding: 14px 16px; border: 1px solid var(--border); background: var(--surface-raised); }
+  .alert-card.high { border-color: var(--red-border); background: var(--red-tint); }
+  .alert-card .a-head { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .alert-card.high .a-head { color: var(--red); }
+  .alert-card:not(.high) .a-head { color: var(--ink-dim); }
+  .alert-card p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--ink); }
+  .dept-chip { display: inline-block; font-size: 10px; font-weight: 700; font-family: var(--mono); text-transform: none; padding: 2px 7px; border-radius: 5px; background: rgba(255,255,255,0.06); color: var(--ink-dim); margin-left: auto; }
+  .empty-note { font-size: 13px; color: var(--ink-faint); padding: 6px 2px; }
+
+  /* ---------- Metrics table ---------- */
+  .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .metrics-table th { text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); padding: 0 14px 10px; border-bottom: 1px solid var(--border); }
+  .metrics-table td { padding: 13px 14px; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
+  .metrics-table tr:last-child td { border-bottom: none; }
+  .metrics-table .m-name { color: var(--ink-dim); }
+  .metrics-table .m-val { font-family: var(--mono); font-weight: 500; text-align: right; }
+  .metrics-table .m-dept { font-size: 10.5px; color: var(--ink-faint); font-family: var(--mono); }
+
+  /* ---------- Executive summary ---------- */
+  .exec-panel { margin-bottom: 16px; }
+  .exec-summary { font-size: 15.5px; line-height: 1.65; color: var(--ink); margin: 0; max-width: 74ch; }
+
+  /* ---------- Actions ---------- */
+  .actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .actions-grid { grid-template-columns: 1fr; } }
+  .action-row { display: flex; gap: 10px; padding: 13px 15px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
+  .priority-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .priority-dot.high { background: var(--red); }
+  .priority-dot.medium { background: var(--gray-2); }
+  .priority-dot.low { background: var(--gray-4); }
+  .action-row p { margin: 0; font-size: 13px; line-height: 1.5; }
+  .action-row .a-dept { display: block; font-size: 10px; color: var(--ink-faint); font-family: var(--mono); margin-top: 5px; }
+
+  .dq-notes { font-size: 12.5px; color: var(--ink-faint); line-height: 1.6; padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--border-soft); }
+  .dq-notes strong { color: var(--ink-dim); }
+
+  footer.credit { text-align: center; font-size: 11px; color: var(--ink-faint); margin-top: 30px; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--white); outline-offset: 2px;
+  }
+
+  @media (max-width: 700px) {
+    .hero-strip { grid-template-columns: repeat(2, 1fr); }
+    header.top { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="config-bar" id="configBar">
+    Running on sample data. To connect your live Supabase project, edit
+    <code>SUPABASE_URL</code>, <code>SUPABASE_ANON_KEY</code>, and <code>WEBHOOK_URL</code>
+    near the top of the script section in this file, then set <code>USE_SAMPLE_DATA = false</code>.
+  </div>
+
+  <header class="top">
+    <div class="brand-row">
+      <div class="mark">K</div>
+      <div>
+        <p class="brand-title" id="brandTitle">Operations Report</p>
+        <p class="brand-sub" id="periodDescriptor">Overview · 31 May – 30 Jun 2026</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <select id="deptSelect"></select>
+      <div class="tabs" id="periodTabs">
+        <button class="tab active" data-period="last_30">30d</button>
+        <button class="tab" data-period="last_90">90d</button>
+        <button class="tab" data-period="ytd">YTD</button>
+        <button class="tab" data-period="custom">Custom</button>
+      </div>
+      <div class="custom-range" id="customRange">
+        <input type="date" id="startDate" />
+        <input type="date" id="endDate" />
+        <button class="btn-run" id="runCustom">Run</button>
+      </div>
+      <button class="export-btn" id="exportBtn">⭳ Export report</button>
+    </div>
+  </header>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <span>Calculating metrics and generating insights…</span>
+  </div>
+
+  <!-- Hero KPI strip -->
+  <div class="hero-strip" id="heroStrip"></div>
+
+  <!-- Signals row: chart + alerts -->
+  <div class="signals-row">
+    <div class="panel">
+      <div class="panel-title"><span id="chartTitle">Revenue by lead source</span><span class="tag" id="chartTag"></span></div>
+      <div class="chart-box"><canvas id="mainChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span>Risks &amp; anomalies</span><span class="tag" id="riskCount"></span></div>
+      <div class="alert-stack" id="alertStack"></div>
+    </div>
+  </div>
+
+  <!-- Executive summary -->
+  <div class="panel exec-panel">
+    <div class="panel-title"><span>Executive summary</span><span class="tag">whole business · this period</span></div>
+    <p class="exec-summary" id="execSummary">—</p>
+  </div>
+
+  <!-- Metrics table -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title"><span id="metricsTitle">Metrics</span><span class="tag" id="metricsTag"></span></div>
+    <table class="metrics-table" id="metricsTable">
+      <thead><tr><th>Metric</th><th style="text-align:right;">Value</th></tr></thead>
+      <tbody id="metricsBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Recommended actions -->
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-title"><span>Recommended actions</span><span class="tag" id="actionCount"></span></div>
+    <div class="actions-grid" id="actionsList"></div>
+    <div class="dq-notes"><strong>Data quality:</strong> <span id="dqNotes">—</span></div>
+  </div>
+
+  <footer class="credit">Koya Talent internal reporting · data synced from Supabase</footer>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIGURATION — replace before deploying
+   ========================================================================= */
+const USE_SAMPLE_DATA = false;
+
+const DEPARTMENT_LABELS = {
+  sales: 'Sales',
+  project_delivery: 'Project Delivery',
+  people_ops: 'People Ops'
+};
+
+/* =========================================================================
+   SAMPLE DATA — mirrors your `reports` row shape exactly, with risks/actions
+   now tagged by department so the dropdown can filter them client-side
+   without any extra Claude calls.
+   ========================================================================= */
+const SAMPLE_REPORTS = {
+  last_30: {
+    period_type: 'last_30', start_date: '2026-05-31', end_date: '2026-06-30',
+    metrics: {
+      sales: { total_leads: 42, closed_won: 9, closed_lost: 15, pipeline_value: 84000, revenue_won: 34200, win_rate: 0.6, marketing_spend: 25200, cost_per_lead: 600,
+        revenue_by_lead_source: { Referral: 13350, Inbound: 11400, Outbound: 9450 } },
+      project_delivery: { active_projects: 12, completed_projects: 6, blocked_projects: 5, on_time_completion_rate: 0, average_delay_days: 6.5, over_budget_projects: 2, average_budget_variance: 525,
+        delivery_load_by_team: { Data: 4, 'Client Ops': 4, 'AI Apps': 3, Automation: 3 } },
+      people_ops: { applications: 18, offers_accepted: 4, new_hires: 5, exits: 1, active_headcount: 81, time_to_hire_days: 21.4, offer_acceptance_time_days: 6.2, attrition_rate: 0.013,
+        headcount_by_department: { Engineering: 31, Sales: 18, Operations: 20, People: 12 } }
+    },
+    data_quality_summary: { flag_counts: { missing_due_date: 1, missing_status: 1, missing_amount: 1 }, total_flagged_records: 3, departments_with_no_records: [] },
+    ai_executive_summary: "Sales delivered strong performance with a 60% win rate and $34,200 in revenue from 9 leads; Referral sourcing generated the highest revenue at $13,350. Project Delivery faces significant operational challenges with 5 of 12 active projects blocked, zero on-time completions, and an average 6.5-day delay. People Ops onboarded 5 new hires against 4 accepted offers, maintaining low attrition at 1.3%.",
+    ai_risks_anomalies: [
+      { description: "On-time completion rate is 0% across all projects, with an average delay of 6.5 days. 5 of 12 active projects are currently blocked.", severity: "high", department: "project_delivery" },
+      { description: "2 projects are over budget with an average variance of $525, suggesting cost control issues alongside schedule slippage.", severity: "high", department: "project_delivery" },
+      { description: "3 project records are missing critical data, limiting visibility into delivery health.", severity: "medium", department: "project_delivery" },
+      { description: "Cost per lead of $600 is elevated relative to prior periods and worth monitoring against marketing ROI.", severity: "low", department: "sales" }
+    ],
+    ai_recommended_actions: [
+      { action: "Investigate the 5 blocked projects to identify blockers; assign owners to remove each block by end of next week.", priority: "high", department: "project_delivery" },
+      { action: "Conduct a root cause analysis on zero on-time completions before the next project kickoff.", priority: "high", department: "project_delivery" },
+      { action: "Reconcile the 3 missing project records to restore full visibility into project health.", priority: "medium", department: "project_delivery" },
+      { action: "Review marketing spend allocation given the $600 cost per lead against channel performance.", priority: "low", department: "sales" }
+    ],
+    ai_data_quality_notes: "3 project records flagged: 1 missing due date, 1 missing status, and 1 missing amount."
+  },
+  last_90: {
+    period_type: 'last_90', start_date: '2026-04-01', end_date: '2026-06-30',
+    metrics: {
+      sales: { total_leads: 118, closed_won: 31, closed_lost: 42, pipeline_value: 156000, revenue_won: 98700, win_rate: 0.425, marketing_spend: 61800, cost_per_lead: 524,
+        revenue_by_lead_source: { Referral: 38200, Inbound: 34500, Outbound: 26000 } },
+      project_delivery: { active_projects: 19, completed_projects: 22, blocked_projects: 6, on_time_completion_rate: 0.68, average_delay_days: 4.1, over_budget_projects: 5, average_budget_variance: 310,
+        delivery_load_by_team: { Data: 11, 'Client Ops': 9, 'AI Apps': 8, Automation: 7 } },
+      people_ops: { applications: 54, offers_accepted: 13, new_hires: 12, exits: 4, active_headcount: 81, time_to_hire_days: 24.8, offer_acceptance_time_days: 7.1, attrition_rate: 0.052,
+        headcount_by_department: { Engineering: 31, Sales: 18, Operations: 20, People: 12 } }
+    },
+    data_quality_summary: { flag_counts: { missing_amount: 3, invalid_due_date: 2 }, total_flagged_records: 5, departments_with_no_records: [] },
+    ai_executive_summary: "Over the last 90 days, sales win rate settled at 42.5% across 118 leads, generating $98,700 in revenue with Referral as the leading channel. Project delivery improved meaningfully, reaching a 68% on-time completion rate. People Ops attrition sits at 5.2%, with hiring pace roughly matching exits.",
+    ai_risks_anomalies: [
+      { description: "5 over-budget projects with an average variance of $310 suggest a recurring, not isolated, budgeting issue.", severity: "medium", department: "project_delivery" }
+    ],
+    ai_recommended_actions: [
+      { action: "Review budgeting assumptions across the 5 over-budget projects to identify a shared root cause.", priority: "medium", department: "project_delivery" }
+    ],
+    ai_data_quality_notes: "5 records flagged: 3 missing deal amount, 2 with invalid due dates."
+  },
+  ytd: {
+    period_type: 'ytd', start_date: '2026-01-01', end_date: '2026-06-30',
+    metrics: {
+      sales: { total_leads: 261, closed_won: 74, closed_lost: 95, pipeline_value: 210000, revenue_won: 241800, win_rate: 0.438, marketing_spend: 142600, cost_per_lead: 546,
+        revenue_by_lead_source: { Referral: 96500, Inbound: 84200, Outbound: 61100 } },
+      project_delivery: { active_projects: 24, completed_projects: 58, blocked_projects: 7, on_time_completion_rate: 0.71, average_delay_days: 3.4, over_budget_projects: 11, average_budget_variance: 280,
+        delivery_load_by_team: { Data: 24, 'Client Ops': 22, 'AI Apps': 19, Automation: 17 } },
+      people_ops: { applications: 132, offers_accepted: 29, new_hires: 27, exits: 9, active_headcount: 81, time_to_hire_days: 26.1, offer_acceptance_time_days: 7.8, attrition_rate: 0.109,
+        headcount_by_department: { Engineering: 31, Sales: 18, Operations: 20, People: 12 } }
+    },
+    data_quality_summary: { flag_counts: { missing_amount: 6, missing_status: 2, invalid_due_date: 3 }, total_flagged_records: 11, departments_with_no_records: [] },
+    ai_executive_summary: "Year to date, the business closed $241,800 in revenue at a 43.8% win rate across 261 leads. Project delivery has trended positively, with a 71% on-time completion rate. Attrition for the year stands at 10.9%, worth monitoring given hiring has kept active headcount flat.",
+    ai_risks_anomalies: [
+      { description: "Year-to-date attrition of 10.9% is meaningfully higher than the 30- and 90-day snapshots, suggesting exits may be concentrated earlier in the year.", severity: "medium", department: "people_ops" }
+    ],
+    ai_recommended_actions: [
+      { action: "Break down year-to-date exits by month and department to confirm whether attrition is concentrated in a specific period or team.", priority: "medium", department: "people_ops" }
+    ],
+    ai_data_quality_notes: "11 records flagged year to date: 6 missing deal amount, 2 missing status, 3 with invalid due dates."
+  }
+};
+
+/* =========================================================================
+   Supabase client + department list
+   ========================================================================= */
+const supabaseClient = (!USE_SAMPLE_DATA && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let currentPeriod = 'last_30';
+let currentDept = 'overview';
+let currentReport = null;
+let mainChart = null;
+
+async function loadDepartmentOptions() {
+  const select = document.getElementById('deptSelect');
+  let departments = Object.keys(DEPARTMENT_LABELS); // fallback / sample-mode list
+
+  if (!USE_SAMPLE_DATA && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('records').select('department');
+      if (!error && data) {
+        departments = [...new Set(data.map(r => r.department))].filter(Boolean);
+      }
+    } catch (err) {
+      console.warn('Could not fetch department list, using default set:', err);
+    }
+  }
+
+  select.innerHTML = ['<option value="overview">Overview</option>']
+    .concat(departments.map(d => `<option value="${d}">${DEPARTMENT_LABELS[d] || d}</option>`))
+    .join('');
+}
+
+/* =========================================================================
+   Helpers
+   ========================================================================= */
+const fmtMoney = (n) => (n === null || n === undefined) ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtPct = (n) => (n === null || n === undefined) ? '—' : (n * 100).toFixed(1) + '%';
+const fmtNum = (n) => (n === null || n === undefined) ? '—' : Number(n).toLocaleString();
+const fmtDays = (n) => (n === null || n === undefined) ? '—' : Number(n).toFixed(1) + 'd';
+const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+const METRIC_DEFS = {
+  sales: [
+    ['total_leads', 'Total leads', fmtNum], ['closed_won', 'Closed won', fmtNum],
+    ['closed_lost', 'Closed lost', fmtNum], ['pipeline_value', 'Pipeline value', fmtMoney],
+    ['revenue_won', 'Revenue won', fmtMoney], ['win_rate', 'Win rate', fmtPct],
+    ['marketing_spend', 'Marketing spend', fmtMoney], ['cost_per_lead', 'Cost per lead', fmtMoney],
+  ],
+  project_delivery: [
+    ['active_projects', 'Active projects', fmtNum], ['completed_projects', 'Completed projects', fmtNum],
+    ['blocked_projects', 'Blocked projects', fmtNum], ['on_time_completion_rate', 'On-time rate', fmtPct],
+    ['average_delay_days', 'Avg delay', fmtDays], ['over_budget_projects', 'Over budget', fmtNum],
+    ['average_budget_variance', 'Avg budget variance', fmtMoney],
+  ],
+  people_ops: [
+    ['applications', 'Applications', fmtNum], ['offers_accepted', 'Offers accepted', fmtNum],
+    ['new_hires', 'New hires', fmtNum], ['exits', 'Exits', fmtNum],
+    ['active_headcount', 'Active headcount', fmtNum], ['time_to_hire_days', 'Time to hire', fmtDays],
+    ['offer_acceptance_time_days', 'Offer acceptance time', fmtDays], ['attrition_rate', 'Attrition rate', fmtPct],
+  ]
+};
+
+const CHART_FIELD = {
+  sales: ['revenue_by_lead_source', 'Revenue by lead source'],
+  project_delivery: ['delivery_load_by_team', 'Delivery load by team'],
+  people_ops: ['headcount_by_department', 'Headcount by department'],
+};
+
+function grayShade(i) { return [ '#F5F5F5', '#B5B5B5', '#7A7A7A', '#4A4A4A', '#333333' ][i % 5]; }
+
+function renderChart(labelMap) {
+  const ctx = document.getElementById('mainChart');
+  if (mainChart) mainChart.destroy();
+  const labels = Object.keys(labelMap);
+  const values = Object.values(labelMap);
+  mainChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => grayShade(i)), borderRadius: 5, maxBarThickness: 44 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#9A9A9A' } },
+        y: { grid: { color: '#1E1E1E' }, ticks: { font: { size: 10.5 }, color: '#6B6B6B' } }
+      }
+    }
+  });
+}
+
+/* =========================================================================
+   Render
+   ========================================================================= */
+function render(report) {
+  currentReport = report;
+
+  if (report.no_data) {
+        document.getElementById('heroStrip').innerHTML = `
+      <div class="kpi-tile" style="grid-column: span 4;">
+        <div class="kpi-eyebrow">No data</div>
+        <div class="kpi-value" style="font-size:16px;">No records found for ${fmtDate(report.start_date)} – ${fmtDate(report.end_date)}.</div>
+        <div class="kpi-sub">Try a different date range, or check that this period falls within your synced data.</div>
+      </div>
+    `;
+        // Clear everything else so stale data from a prior period isn't left showing
+        document.getElementById('metricsBody').innerHTML = '';
+        document.getElementById('alertStack').innerHTML = '<div class="empty-note">No data available for this period.</div>';
+        document.getElementById('actionsList').innerHTML = '<div class="empty-note">No data available for this period.</div>';
+        document.getElementById('execSummary').textContent = 'No records were found for the selected period.';
+        document.getElementById('dqNotes').textContent = report.ai_data_quality_notes || '—';
+        if (mainChart) { mainChart.destroy(); mainChart = null; }
+        return; // skip the rest of the normal render logic
+    }
+  const metrics = report.metrics || {};
+  const dq = report.data_quality_summary || {
+        total_flagged_records: 0
+    };
+  const s = metrics.sales || {}, p = metrics.project_delivery || {}, h = metrics.people_ops || {};
+
+  document.getElementById('brandTitle').textContent =
+    currentDept === 'overview' ? 'Operations Report' : `${DEPARTMENT_LABELS[currentDept]} Report`;
+  document.getElementById('periodDescriptor').textContent =
+    `${currentDept === 'overview' ? 'Overview' : DEPARTMENT_LABELS[currentDept]} · ${fmtDate(report.start_date)} – ${fmtDate(report.end_date)}`;
+
+  // Hero strip — always whole-business, regardless of department filter
+  document.getElementById('heroStrip').innerHTML = `
+    <div class="kpi-tile"><div class="kpi-eyebrow">Revenue won</div><div class="kpi-value">${fmtMoney(s.revenue_won)}</div><div class="kpi-sub">${fmtPct(s.win_rate)} win rate</div></div>
+    <div class="kpi-tile"><div class="kpi-eyebrow">Active projects</div><div class="kpi-value">${fmtNum(p.active_projects)}</div><div class="kpi-sub">${fmtNum(p.blocked_projects)} blocked</div></div>
+    <div class="kpi-tile"><div class="kpi-eyebrow">Active headcount</div><div class="kpi-value">${fmtNum(h.active_headcount)}</div><div class="kpi-sub">${fmtNum(h.new_hires)} new hires</div></div>
+    <div class="kpi-tile"><div class="kpi-eyebrow">Data quality</div><div class="kpi-value">${fmtNum(dq.total_flagged_records)}</div><div class="kpi-sub">records flagged</div></div>
+  `;
+
+  // Metrics table + chart — scoped to selected department, or all three if overview
+  const metricsBody = document.getElementById('metricsBody');
+  const deptsToShow = currentDept === 'overview' ? ['sales', 'project_delivery', 'people_ops'] : [currentDept];
+
+  metricsBody.innerHTML = deptsToShow.map(dept => {
+    const rows = METRIC_DEFS[dept].map(([key, label, fmt]) => {
+      const val = metrics[dept][key];
+      return `<tr><td class="m-name">${label}${currentDept === 'overview' ? `<span class="m-dept"> · ${DEPARTMENT_LABELS[dept]}</span>` : ''}</td><td class="m-val">${fmt(val)}</td></tr>`;
+    }).join('');
+    return rows;
+  }).join('');
+
+  document.getElementById('metricsTitle').textContent = currentDept === 'overview' ? 'All metrics' : `${DEPARTMENT_LABELS[currentDept]} metrics`;
+  document.getElementById('metricsTag').textContent = report.period_type === 'custom' ? 'custom range' : report.period_type.replace('_', ' ');
+
+  const chartDept = currentDept === 'overview' ? 'sales' : currentDept;
+  const [chartField, chartLabel] = CHART_FIELD[chartDept];
+  document.getElementById('chartTitle').textContent = chartLabel;
+  document.getElementById('chartTag').textContent = currentDept === 'overview' ? 'sales shown' : DEPARTMENT_LABELS[currentDept];
+  renderChart(metrics[chartDept][chartField] || {});
+
+  // Executive summary — always whole-business, never filtered by department
+  document.getElementById('execSummary').textContent = report.ai_executive_summary || 'No executive summary available for this period.';
+
+  // Risks — filtered by department tag when a department is selected
+  const allRisks = report.ai_risks_anomalies || [];
+  const risks = currentDept === 'overview' ? allRisks : allRisks.filter(r => r.department === currentDept);
+  document.getElementById('riskCount').textContent = `${risks.length} flagged`;
+  document.getElementById('alertStack').innerHTML = risks.length
+    ? risks.map(r => `<div class="alert-card ${r.severity}"><div class="a-head">⚠ ${r.severity}${currentDept === 'overview' ? `<span class="dept-chip">${DEPARTMENT_LABELS[r.department] || r.department}</span>` : ''}</div><p>${r.description}</p></div>`).join('')
+    : `<div class="empty-note">No meaningful risks or anomalies${currentDept === 'overview' ? '' : ' for ' + DEPARTMENT_LABELS[currentDept]} this period.</div>`;
+
+  // Actions — same department filtering
+  const allActions = report.ai_recommended_actions || [];
+  const actions = currentDept === 'overview' ? allActions : allActions.filter(a => a.department === currentDept);
+  document.getElementById('actionCount').textContent = `${actions.length}`;
+  document.getElementById('actionsList').innerHTML = actions.length
+    ? actions.map(a => `<div class="action-row"><span class="priority-dot ${a.priority}"></span><p>${a.action}${currentDept === 'overview' ? `<span class="a-dept">${DEPARTMENT_LABELS[a.department] || a.department}</span>` : ''}</p></div>`).join('')
+    : `<div class="empty-note">No recommended actions${currentDept === 'overview' ? '' : ' for ' + DEPARTMENT_LABELS[currentDept]} this period.</div>`;
+
+  document.getElementById('dqNotes').textContent = report.ai_data_quality_notes || 'No data quality issues affecting this report.';
+
+  supabaseClient.from('usage_events').insert({
+        period_type: currentPeriod,
+        department: currentDept === 'overview' ? null : currentDept,
+    }); // no need to await — don't block rendering on this
+}
+
+/* =========================================================================
+   Data fetching
+   ========================================================================= */
+async function loadStandardPeriod(periodType) {
+  setLoading(true);
+  try {
+    let report;
+    if (USE_SAMPLE_DATA || !supabaseClient) {
+      report = SAMPLE_REPORTS[periodType];
+    } else {
+      const { data, error } = await supabaseClient.from('reports').select('*').eq('period_type', periodType).single();
+      if (error) throw error;
+      report = {
+        ...data,
+        metrics:
+        typeof data.metrics === 'string'
+        ? JSON.parse(data.metrics)
+        : data.metrics,
+
+        data_quality_summary:
+              typeof data.data_quality_summary === 'string'
+                  ? JSON.parse(data.data_quality_summary)
+                  : data.data_quality_summary,
+
+          ai_risks_anomalies:
+              typeof data.ai_risks_anomalies === 'string'
+                  ? JSON.parse(data.ai_risks_anomalies)
+                  : data.ai_risks_anomalies,
+
+          ai_recommended_actions:
+              typeof data.ai_recommended_actions === 'string'
+                  ? JSON.parse(data.ai_recommended_actions)
+                  : data.ai_recommended_actions
+    };
+    currentPeriod = periodType;
+    console.log('REPORT FROM SUPABASE:', report);
+      console.log('REPORT METRICS:', report?.metrics);
+      console.log('SALES METRICS:', report?.metrics?.sales);
+    render(report);
+  }} catch (err) {
+    console.error('Failed to load report:', err);
+    alert('Could not load this period\'s report. Check the console for details.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function runCustomReport(startDate, endDate) {
+  setLoading(true);
+  try {
+    let report;
+    if (USE_SAMPLE_DATA) {
+      report = { ...SAMPLE_REPORTS.last_90, period_type: 'custom', start_date: startDate, end_date: endDate };
+    } else {
+      const res = await fetch(WEBHOOK_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: startDate, end_date: endDate })
+      });
+      if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
+      const data = await res.json();
+
+        report = {
+            ...data,
+
+            metrics:
+                typeof data.metrics === 'string'
+                    ? JSON.parse(data.metrics)
+                    : data.metrics,
+
+            data_quality_summary:
+                typeof data.data_quality_summary === 'string'
+                    ? JSON.parse(data.data_quality_summary)
+                    : data.data_quality_summary,
+
+            ai_risks_anomalies:
+                typeof data.ai_risks_anomalies === 'string'
+                    ? JSON.parse(data.ai_risks_anomalies)
+                    : data.ai_risks_anomalies,
+
+            ai_recommended_actions:
+                typeof data.ai_recommended_actions === 'string'
+                    ? JSON.parse(data.ai_recommended_actions)
+                    : data.ai_recommended_actions
+        };
+
+        console.log('CUSTOM REPORT:', report);
+        console.log('CUSTOM REPORT METRICS:', report.metrics);
+    }
+    render(report);
+  } catch (err) {
+    console.error('Custom report failed:', err);
+    alert('Could not generate the custom report. Check the console for details.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function setLoading(isLoading) {
+  document.getElementById('loadingOverlay').classList.toggle('show', isLoading);
+  document.getElementById('runCustom').disabled = isLoading;
+}
+
+/* =========================================================================
+   Export report — client-side markdown download, no extra libraries
+   ========================================================================= */
+function exportReport() {
+    if (!currentReport) {
+        alert('No report is currently loaded.');
+        return;
+    }
+
+    const r = currentReport;
+
+    const scopeLabel =
+        currentDept === 'overview'
+            ? 'Overview'
+            : (DEPARTMENT_LABELS[currentDept] || currentDept);
+
+    const deptsToShow =
+        currentDept === 'overview'
+            ? ['sales', 'project_delivery', 'people_ops']
+            : [currentDept];
+
+    const rows = [];
+
+    rows.push(['Koya Talent Operations Report']);
+    rows.push(['Scope', scopeLabel]);
+    rows.push([
+        'Period',
+        `${r.start_date || '—'} to ${r.end_date || '—'}`
+    ]);
+    rows.push([]);
+
+    // Safely get metrics
+    const metrics =
+        r &&
+            r.metrics &&
+            typeof r.metrics === 'object'
+            ? r.metrics
+            : null;
+
+    // No data case
+    if (r.no_data || !metrics) {
+
+        rows.push(['No data available for this period.']);
+
+        if (r.ai_data_quality_notes) {
+            rows.push([]);
+            rows.push(['Data Quality Notes']);
+            rows.push([r.ai_data_quality_notes]);
+        }
+
+    } else {
+
+        // Executive summary
+        rows.push(['Executive Summary']);
+        rows.push([
+            r.ai_executive_summary ||
+            'No executive summary available.'
+        ]);
+        rows.push([]);
+
+        // Metrics
+        deptsToShow.forEach(dept => {
+
+            const departmentMetrics = metrics[dept];
+
+            rows.push([
+                `${DEPARTMENT_LABELS[dept] || dept} Metrics`
+            ]);
+
+            // If this department has no metrics
+            if (!departmentMetrics) {
+                rows.push([
+                    'No metrics available for this department.'
+                ]);
+                rows.push([]);
+                return;
+            }
+
+            rows.push(['Metric', 'Value']);
+
+            const metricDefinitions = METRIC_DEFS[dept] || [];
+
+            metricDefinitions.forEach(([key, label, fmt]) => {
+
+                const val = departmentMetrics[key];
+
+                rows.push([
+                    label,
+                    fmt(val)
+                ]);
+
+            });
+
+            rows.push([]);
+
+        });
+
+
+        // Risks
+        const allRisks = Array.isArray(r.ai_risks_anomalies)
+            ? r.ai_risks_anomalies
+            : [];
+
+        const risks =
+            currentDept === 'overview'
+                ? allRisks
+                : allRisks.filter(
+                    x => x.department === currentDept
+                );
+
+        rows.push(['Risks & Anomalies']);
+
+        if (risks.length > 0) {
+
+            rows.push(['Severity', 'Description']);
+
+            risks.forEach(x => {
+                rows.push([
+                    x.severity || 'Unknown',
+                    x.description || ''
+                ]);
+            });
+
+        } else {
+
+            rows.push([
+                'No meaningful risks identified.'
+            ]);
+
+        }
+
+        rows.push([]);
+
+
+        // Recommended actions
+        const allActions = Array.isArray(r.ai_recommended_actions)
+            ? r.ai_recommended_actions
+            : [];
+
+        const actions =
+            currentDept === 'overview'
+                ? allActions
+                : allActions.filter(
+                    x => x.department === currentDept
+                );
+
+        rows.push(['Recommended Actions']);
+
+        if (actions.length > 0) {
+
+            rows.push(['Priority', 'Action']);
+
+            actions.forEach(x => {
+                rows.push([
+                    x.priority || 'Unknown',
+                    x.action || ''
+                ]);
+            });
+
+        } else {
+
+            rows.push([
+                'No recommended actions.'
+            ]);
+
+        }
+
+        rows.push([]);
+
+
+        // Data quality
+        rows.push(['Data Quality Notes']);
+
+        rows.push([
+            r.ai_data_quality_notes ||
+            'No data quality issues affecting this report.'
+        ]);
+    }
+
+
+    // CSV escaping
+    function csvEscape(field) {
+
+        const str = String(field ?? '');
+
+        if (/[",\n\r]/.test(str)) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+
+        return str;
+    }
+
+
+    const csvContent = rows
+        .map(row => row.map(csvEscape).join(','))
+        .join('\r\n');
+
+
+    // Add BOM so Excel opens UTF-8 correctly
+    const blob = new Blob(
+        ['\uFEFF' + csvContent],
+        {
+            type: 'text/csv;charset=utf-8;'
+        }
+    );
+
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+
+    a.href = url;
+
+    a.download =
+        `koya-report-${currentDept}-${r.period_type || currentPeriod}-${r.end_date || 'report'}.csv`;
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    document.body.removeChild(a);
+
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, 100);
+}
+
+/* =========================================================================
+   Wiring
+   ========================================================================= */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const period = tab.dataset.period;
+    const customRange = document.getElementById('customRange');
+    if (period === 'custom') {
+      customRange.classList.add('show');
+    } else {
+      customRange.classList.remove('show');
+      loadStandardPeriod(period);
+    }
+  });
+});
+
+document.getElementById('deptSelect').addEventListener('change', (e) => {
+  currentDept = e.target.value;
+  if (currentReport) render(currentReport);
+});
+
+document.getElementById('runCustom').addEventListener('click', () => {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (!start || !end) { alert('Pick a start and end date first.'); return; }
+  if (start > end) { alert('Start date must be before end date.'); return; }
+  runCustomReport(start, end);
+});
+
+document.getElementById('exportBtn').addEventListener('click', exportReport);
+
+if (USE_SAMPLE_DATA) document.getElementById('configBar').classList.add('show');
+
+/* Initial load: Overview, last 30 days */
+loadDepartmentOptions();
+loadStandardPeriod('last_30');
+</script>
+</body>
+</html>
